@@ -1,33 +1,43 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode'
+import dedent from './dedent'
 
-// this method is called when your extension is activated
-// your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext): void {
-  // Use the console to output diagnostic information (console.log) and errors (console.error)
-  // This line of code will only be executed once when your extension is activated
-  /* eslint-disable no-console */
-  console.log(
-    'Congratulations, your extension "vscode-dude-wheres-my-module" is now active!'
-  )
-  /* eslint-enable no-console */
-
-  // The command has been defined in the package.json file
-  // Now provide the implementation of the command with registerCommand
-  // The commandId parameter must match the command field in package.json
   const disposable = vscode.commands.registerCommand(
-    'extension.helloWorld',
-    () => {
-      // The code you place here will be executed every time your command is executed
+    'extension.pasteAsSnippet',
+    async (): Promise<void> => {
+      const editor = vscode.window.activeTextEditor
+      if (!editor) return
 
-      // Display a message box to the user
-      vscode.window.showInformationMessage('Hello World!')
+      const clipboard = await vscode.env.clipboard.readText()
+      if (!/\S/.test(clipboard)) return
+      const code = dedent(clipboard)
+
+      let snippet = `"": ${JSON.stringify(
+        {
+          prefix: '',
+          body: code.split(/\r\n?|\n/gm),
+        },
+        null,
+        2
+      )}`
+
+      const selLine = editor.document.lineAt(editor.selection.start.line).text
+      const selectionIndent = selLine.substring(
+        0,
+        editor.selection.start.character
+      )
+      if (selectionIndent && !/\S/.test(selectionIndent)) {
+        snippet = snippet.replace(/^/gm, selectionIndent).trim()
+      }
+
+      const insertOffset = editor.document.offsetAt(editor.selection.start)
+      await editor.edit(edit => edit.replace(editor.selection, snippet))
+      const newPosition = editor.document.positionAt(insertOffset + 1)
+      editor.selection = new vscode.Selection(newPosition, newPosition)
     }
   )
 
   context.subscriptions.push(disposable)
 }
 
-// this method is called when your extension is deactivated
 export function deactivate(): void {} // eslint-disable-line @typescript-eslint/no-empty-function
